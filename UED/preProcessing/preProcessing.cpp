@@ -86,7 +86,7 @@ int main(int argc, char* argv[]) {
 
   // Debugging
   bool pltCent = false;
-  bool verbose = false;
+  bool verbose = true;
   bool pltVerbose = false;
 
   // Make runLists
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-  string runListName(argv[1]);
+  std::string runListName(argv[1]);
 
   // Make sure the image has odd number of bins
   if (!(roih%2) || !(roiw%2)) {
@@ -168,10 +168,10 @@ int main(int argc, char* argv[]) {
 
   int imgNum;
   int curRun;
-  string fileName;
-  string line;
+  std::string fileName;
+  std::string line;
   size_t ipos, fpos;
-  string date, scan, curScan, curDate, rFileName;
+  std::string date, scan, curScan, curDate, rFileName;
   float stagePos;
   std::vector<imgInfoStruct> imgINFO;
 
@@ -267,9 +267,9 @@ int main(int argc, char* argv[]) {
       for (int icnt=ifl; icnt<std::min(ifl+3, (uint)imgINFO.size()); icnt++) {
 
         /// Filling image std::vector ///
-        string imgAddr = imgINFO[icnt].path + imgINFO[icnt].fileName;
+        std::string imgAddr = imgINFO[icnt].path + imgINFO[icnt].fileName;
         cv::Mat imgMat = cv::imread(imgAddr.c_str() ,CV_LOAD_IMAGE_ANYDEPTH); 
-        cout<<"image addr: "<<imgAddr<<endl;
+        std::cout << "Finding center with image: "<<imgAddr<<endl;
         imgProc::threshold(imgMat, hotPixel);
 
         Nrows = imgMat.rows;
@@ -356,7 +356,8 @@ int main(int argc, char* argv[]) {
           refMat = cv::imread(refAddr.c_str() ,CV_LOAD_IMAGE_ANYDEPTH); 
           imgProc::threshold(refMat, hotPixel);
 
-          inpImg = imgProc::getImgVector(refMat, roih, roiw, centerR, centerC);
+          inpImg = imgProc::getImgVector(refMat, roih, roiw, 
+                            centerR, centerC, false);
           for (ir=0; ir<roih; ir++) {
             for (ic=0; ic<roiw; ic++) {
               imgOrig[ir][ic] += inpImg[ir][ic];
@@ -366,6 +367,10 @@ int main(int argc, char* argv[]) {
           norm += 1;
           iffl++;
         }
+
+        // Subtract readout noise
+        imgProc::removeAvgReadOutNoise(imgOrig, roih/2, roiw/2, 
+                  0.9*roih/2., 0.98*roih/2., nanVal);
 
         // Normalize reference
         for (ir=0; ir<roih; ir++) {
@@ -410,13 +415,18 @@ int main(int argc, char* argv[]) {
     stagePos = imgINFO[ifl].stagePos;
  
     ///////  Load image  ///////
-    string imgAddr = imgINFO[ifl].path + imgINFO[ifl].fileName;
+    std::string imgAddr = imgINFO[ifl].path + imgINFO[ifl].fileName;
     if (verbose) cout << "INFO: Trying to open " << imgAddr << "\t .....";
     cv::Mat imgMat = cv::imread(imgAddr.c_str() ,CV_LOAD_IMAGE_ANYDEPTH); 
     imgProc::threshold(imgMat, hotPixel);
     if (verbose) cout << "\tpassed!\n\n";
 
-    imgOrig = imgProc::getImgVector(imgMat, roih, roiw, centerR, centerC);
+    imgOrig = imgProc::getImgVector(imgMat, roih, roiw,
+                  centerR, centerC, false);
+
+    // Subtract readout noise
+    imgProc::removeAvgReadOutNoise(imgOrig, roih/2, roiw/2, 
+                  0.9*roih/2., 0.98*roih/2., nanVal);
 
     // Fill in detector hole based on symmetry
     int hCentR = roih/2 + 3;
@@ -512,8 +522,8 @@ int main(int argc, char* argv[]) {
     const int lgFit_Rows = roih/5;
     const int lgFit_Cols = roiw/5;
     // Check if g matrix already exists, else make new one
-    string matrix_folder = "/reg/neh/home/khegazy/analysis/legendreFitMatrices/";
-    string matrix_fileName = "gMatrix_row-" + to_string(lgFit_Rows)
+    std::string matrix_folder = "/reg/neh/home/khegazy/analysis/legendreFitMatrices/";
+    std::string matrix_fileName = "gMatrix_row-" + to_string(lgFit_Rows)
         + "_col-" + to_string(lgFit_Cols) + "_Nrad-" + to_string(NradBins)
         + "_Nlg-" + to_string(Nlg) + ".dat";
     if (access((matrix_folder + matrix_fileName).c_str(), F_OK) == -1) {
@@ -536,7 +546,7 @@ int main(int argc, char* argv[]) {
     clock_t begin = clock();
     legCoeffs = imgProc::legendreFit(imgSubBkg, 5, Nlg, NradBins, lgFit_Rows, lgFit_Cols, nanVal, gOrig);
     clock_t end = clock();
-    cout<<"TIME: "<<double(end - begin) / CLOCKS_PER_SEC<<endl;
+    cout << "TIME: " << double(end - begin)/CLOCKS_PER_SEC << endl;
 
     if (pltVerbose) {
       std::vector<double> test(NradBins);
@@ -546,7 +556,6 @@ int main(int argc, char* argv[]) {
         }
         plt.print1d(test, "testLeg" + to_string(i));
       }
-      cout<<"done plotting"<<endl;
     }
 
 
@@ -557,7 +566,7 @@ int main(int argc, char* argv[]) {
 
   tree->Write();
   file->Close();
-  cout<<endl<<endl<<endl;
+  cout << "\n\n\n";
 
   // Release fftw memory
   fftw_destroy_plan(fftFref);
